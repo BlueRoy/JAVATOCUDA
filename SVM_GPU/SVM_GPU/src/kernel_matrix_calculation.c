@@ -1,5 +1,5 @@
-#include "/usr/local/cuda-5.5/include/cuda_runtime.h"
-#include "/usr/local/cuda-5.5/include/cublas_v2.h"
+#include "/usr/local/cuda-7.0/include/cuda_runtime.h"
+#include "/usr/local/cuda-7.0/include/cublas_v2.h"
 
 // Scalars
 const float alpha = 1;
@@ -29,7 +29,7 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
 
 	cudaError_t cudaStat;   
 	cublasHandle_t handle;
-	
+	cudaSetDevice(0);	
 	status = cublasCreate(&handle);
 
 	len_tv = prob-> x[0].dim;
@@ -128,6 +128,7 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
 
 void cal_km( struct svm_problem * p_km)
 {
+	printf("******************\n");
 	float gamma = param.gamma;
 
 	ckm(&prob, p_km, &gamma);
