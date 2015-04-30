@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     SVM_J2C
  * Method:    do_cross_validation
- * Signature: (IIIIDDDDDI[I[DDDIII)V
+ * Signature: (I[D[[Lsvm_node;IIIDDDDDIDDIII)V
  */
 JNIEXPORT void JNICALL Java_SVM_1J2C_do_1cross_1validation
-  (JNIEnv *, jobject, jint, jint, jint, jint, jdouble, jdouble, jdouble, jdouble, jdouble, jint, jintArray, jdoubleArray, jdouble, jdouble, jint, jint, jint);
+  (JNIEnv *, jobject, jint, jdoubleArray, jobjectArray, jint, jint, jint, jdouble, jdouble, jdouble, jdouble, jdouble, jint, jdouble, jdouble, jint, jint, jint);
 
 #ifdef __cplusplus
 }

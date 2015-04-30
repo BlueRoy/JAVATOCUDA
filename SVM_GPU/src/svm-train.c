@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <malloc.h>
 #include "svm.h"
 #include "SVM_J2C.h"
 #include "/usr/local/cuda-7.0/include/cuda_runtime.h"
@@ -19,9 +20,54 @@ struct svm_node *x_space;
 jint nr_fold;
 
 JNIEXPORT void JNICALL Java_SVM_1J2C_do_1cross_1validation
-(JNIEnv *env, jobject obj, jint jl, jint jsvm_type, jint jkernel_type, jint jdegree, jdouble jgamma, jdouble jcoef0, jdouble jcache_size, jdouble jeps, jdouble jC, jint jnr_weight, jintArray jweight_lable, jdoubleArray jweight, jdouble jnu, jdouble jp, jint jshrinking, jint jprobability, jint jnr_fold){
+(JNIEnv *env, jobject obj, jint jl, jdoubleArray jy,jobjectArray jx, jint jsvm_type, jint jkernel_type, jint jdegree, jdouble jgamma, jdouble jcoef0, jdouble jcache_size, jdouble jeps, jdouble jC, jint jnr_weight, jdouble jnu, jdouble jp, jint jshrinking, jint jprobability, jint jnr_fold){
+	jint i=0;
+	jint j=0;
+	prob.l = jl;	
+	prob.y = jy;
+	
+	jint row = (*env)->GetArrayLength(env,jx); //get row
+	int *tmp_bind0 =(int *)malloc(row*sizeof(int));
+	double *tmp_bind1 =(double *)malloc(row*sizeof(double));
+	//prob.x = Malloc(struct svm_node, prob.l);
+	
+	for(i=0;i<row;i++){
+	jobject o_element = (*env)->GetObjectArrayElement(env,jx,i);
+	jclass cls = (*env)->GetObjectClass(env,o_element);
+	jfieldID fid_index = (*env)->GetFieldID(env,cls,"index","I");
+	jfieldID fid_value = (*env)->GetFieldID(env,cls,"value","D");
+	
+	memcpy(tmp_bind0+i*sizeof(int),&fid_index,sizeof(int));
+	memcpy(tmp_bind1+i*sizeof(double),&fid_value,sizeof(double));
+	printf("%d\n",tmp_bind0[i]);	
+}	
+	prob.x->dim = tmp_bind0;
+	prob.x->values= tmp_bind1;
 
-	prob.l = jl;
+	
+	free(tmp_bind0);
+	free(tmp_bind1);
+	//printf("%d\n",row);
+	
+	//jarray *myarray = (*env)->GetObjectArrayElement(env,jx,0);//row0
+
+	//printf("%c,%d\n", myarray[2],obj);
+	//jint col = (*env)->GetArrayLength(env,myarray); //get col	
+	//printf("%d\n",col);
+	//for(i=0;i<row;i++)
+	//{
+	//	*myarray = (*env)->GetObjectArrayElement(env,jx,i); //row i
+		//jdouble *coldata = (*env)->GetDoubleArrayElements(env, (jdoubleArray)myarray,0);
+	//	for(j=0;i<col;j++)
+	//	{
+			
+	//		jarray coldata = (*env)->GetObjectArrayElement(env,(jobjectArray)myarray,j);
+			//printf("%d\n",coldata[0]);
+			//(*(prob.x+i)+j)->value = (double)coldata[1];	
+			//prob.x[i][j].dim = (int)coldata[0];
+	//	}
+			
+	//}
 	param.svm_type = param.kernel_type;
 	param.degree = jdegree;
 	param.gamma = jgamma;
@@ -49,13 +95,11 @@ void setup_pkm(struct svm_problem *p_km)
         p_km->l = prob.l;
         p_km->x = Malloc(struct svm_node,p_km->l);
         p_km->y = Malloc(double,p_km->l);
-
         for(i=0;i<prob.l;i++)
         {
                 (p_km->x+i)->values = Malloc(double,prob.l+1);
                 (p_km->x+i)->dim = prob.l+1;
         }
-
         for( i=0; i<prob.l; i++) p_km->y[i] = prob.y[i];
 }
 
@@ -126,8 +170,7 @@ void run_pair(struct svm_problem * p_km)
 {
 
         double rate;
-
-        cal_km( p_km);
+        cal_km(p_km);
 
         param.kernel_type = PRECOMPUTED;
 
@@ -142,11 +185,9 @@ void run_pair(struct svm_problem * p_km)
 void do_cross_validation_with_KM_precalculated()
 {
         struct svm_problem p_km;
-
+	
         setup_pkm(&p_km);
-
         run_pair(&p_km);
-
         free_pkm(&p_km);
 
 }
@@ -184,9 +225,9 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
 
         len_tv = prob-> x[0].dim;
         ntv   = prob-> l;
-
+	printf("%d,%d\n",len_tv,ntv);
         nfa = len_tv * ntv;
-
+	
         tva = (float*) malloc ( len_tv * ntv* sizeof(float) );
         vtm = (float*) malloc ( len_tv * sizeof(float) );
         DP  = (float*) malloc ( ntv * sizeof(float) );
@@ -196,14 +237,13 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
         tv_sq = (double*) malloc ( ntv * sizeof(double) );
 
         v_f_g  = (double*) malloc ( ntv * sizeof(double) );
-
         for ( i_r = 0; i_r < ntv ; i_r++ )
         {
                 for ( i_c = 0; i_c < len_tv; i_c++ )
                         tva[i_r * len_tv + i_c] = (float)prob-> x[i_r].values[i_c];
         }
 	cudaStat = cudaMalloc((void**)&g_tva, len_tv * ntv * sizeof(float));
-
+	
         if (cudaStat != cudaSuccess) {
                 free( tva );
                 free( vtm );
@@ -219,7 +259,7 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
                 getchar();
                 return;
     }
-
+	printf("**********");
         cudaStat = cudaMalloc((void**)&g_vtm, len_tv * sizeof(float));
 
         cudaStat = cudaMalloc((void**)&g_DotProd, ntv * sizeof(float));
@@ -230,7 +270,6 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
 
 	// Copy cpu vector to gpu vector
         status = cublasSetVector( len_tv * ntv, sizeof(float), tr_ar, 1, g_tva, 1 );
-
         free( tr_ar );
 
         for( i_v = 0; i_v < ntv; i_v++ )
@@ -277,9 +316,7 @@ void ckm( struct svm_problem *prob, struct svm_problem *pecm, float *gamma  )
 
 void cal_km( struct svm_problem * p_km)
 {
-        printf("******************\n");
         float gamma = param.gamma;
-
         ckm(&prob, p_km, &gamma);
 }
 

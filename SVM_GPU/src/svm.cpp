@@ -677,6 +677,7 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 				}
 			}
 			else
+
 			{
 				if(alpha[i] < 0)
 				{

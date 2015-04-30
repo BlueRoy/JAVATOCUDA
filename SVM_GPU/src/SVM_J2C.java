@@ -18,8 +18,8 @@ public class SVM_J2C {
 		System.loadLibrary("SVM_GPU");
 	}
 		
-	public native void do_cross_validation(int l, int svm_type, int kernel_type, int degree, double gamma, double coef0, double cache_size, 
-			double eps, double C, int nr_weight, int[] weight_label, double[] weight, double nu, double p, int shrinking, int probability, int nr_fold);
+	public native void do_cross_validation(int l, double[] y, svm_node[][] x, int svm_type, int kernel_type, int degree, double gamma, double coef0, double cache_size, 
+			double eps, double C, int nr_weight, double nu, double p, int shrinking, int probability, int nr_fold);
 
 
 	private static svm_print_interface svm_print_null = new svm_print_interface()
@@ -72,10 +72,20 @@ public class SVM_J2C {
 			System.err.print("ERROR: "+error_msg+"\n");
 			System.exit(1);
 		}
+		//double[][] index = new double[prob.l][];
+		//double[][] value = new double[prob.l][];
+		//for (int i=0; i<prob.l; i++){
+		//	for(int j=0; j < prob.x[i].length; j++ ){
+		//	index[i][j] = prob.x[i][j].index;
+		//	value[i][j] = prob.x[i][j].value;
+		//	System.out.print(index[i][j] + " ");
+		//	}		
+		//System.out.println();
+		//}		
 		if (cross_validation != 0){
-		long starttime = System.currentTimeMillis(); 
-		do_cross_validation(prob.l,param.svm_type, param.kernel_type, param.degree, param.gamma, param.coef0, param.cache_size, 
-				param.eps, param.C, param.nr_weight, param.weight_label, param.weight, param.nu, param.p, param.shrinking, param.probability,nr_fold); 
+		long starttime = System.currentTimeMillis();
+		do_cross_validation(prob.l,prob.y,prob.x,param.svm_type, param.kernel_type, param.degree, param.gamma, param.coef0, param.cache_size, 
+				param.eps, param.C, param.nr_weight, param.nu, param.p, param.shrinking, param.probability,nr_fold); 
 		long endtime = System.currentTimeMillis(); 
 		System.out.println("Time: " + (endtime-starttime) + "ms");
 		}

@@ -84,21 +84,11 @@ svm.o : svm.cpp svm.h
 	g++ -fPIC -o svm.o -c svm.cpp
 
 svm-train.o : svm-train.c
-	nvcc -o svm-train.o -c svm-train.c -I. $(INCLUDES) $(GENCODE_FLAGS) $(LIBRARIES)
+	nvcc -Xcompiler -fPIC -o svm-train.o -c svm-train.c -I. $(INCLUDES) $(GENCODE_FLAGS) -L. $(LIBRARIES)
 
 libSVM_GPU.so:
 	g++ -shared -fPIC -o libSVM_GPU.so *.o -I.$(INCLUDES) $(LIBRARIES)
 
-#svm-train-gpu.o: svm.cpp svm-train.o
-	#nvcc -I. $(INCLUDES)  $(GENCODE_FLAGS) -o $@ -c $<
-
-#svm-train-gpu: svm.o svm-train.o
-	#$(NVCC) $(ALL_LDFLAGS) -o $@ $+ $(LIBRARIES)
-	#mkdir -p /bin/$(OS_ARCH)/$(OSLOWER)/$(TARGET)$(if $(abi),/$(abi))
-	#cp $@ /bin/$(OS_ARCH)/$(OSLOWER)/$(TARGET)$(if $(abi),/$(abi))
-
 clean:
 	rm -f *.o *.so
-	#rm -rf /bin/$(OS_ARCH)/$(OSLOWER)/$(TARGET)$(if $(abi),/$(abi))/svm-train-gpu
-
 
