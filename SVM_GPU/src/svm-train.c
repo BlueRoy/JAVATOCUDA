@@ -18,56 +18,11 @@ struct svm_problem prob;        // set by read_problem
 struct svm_mode *model;
 struct svm_node *x_space;
 jint nr_fold;
+static char *line = NULL;
+static int max_line_len;
 
 JNIEXPORT void JNICALL Java_SVM_1J2C_do_1cross_1validation
-(JNIEnv *env, jobject obj, jint jl, jdoubleArray jy,jobjectArray jx, jint jsvm_type, jint jkernel_type, jint jdegree, jdouble jgamma, jdouble jcoef0, jdouble jcache_size, jdouble jeps, jdouble jC, jint jnr_weight, jdouble jnu, jdouble jp, jint jshrinking, jint jprobability, jint jnr_fold){
-	jint i=0;
-	jint j=0;
-	prob.l = jl;	
-	prob.y = jy;
-	
-	jint row = (*env)->GetArrayLength(env,jx); //get row
-	int *tmp_bind0 =(int *)malloc(row*sizeof(int));
-	double *tmp_bind1 =(double *)malloc(row*sizeof(double));
-	//prob.x = Malloc(struct svm_node, prob.l);
-	
-	for(i=0;i<row;i++){
-	jobject o_element = (*env)->GetObjectArrayElement(env,jx,i);
-	jclass cls = (*env)->GetObjectClass(env,o_element);
-	jfieldID fid_index = (*env)->GetFieldID(env,cls,"index","I");
-	jfieldID fid_value = (*env)->GetFieldID(env,cls,"value","D");
-	
-	memcpy(tmp_bind0+i*sizeof(int),&fid_index,sizeof(int));
-	memcpy(tmp_bind1+i*sizeof(double),&fid_value,sizeof(double));
-	printf("%d\n",tmp_bind0[i]);	
-}	
-	prob.x->dim = tmp_bind0;
-	prob.x->values= tmp_bind1;
-
-	
-	free(tmp_bind0);
-	free(tmp_bind1);
-	//printf("%d\n",row);
-	
-	//jarray *myarray = (*env)->GetObjectArrayElement(env,jx,0);//row0
-
-	//printf("%c,%d\n", myarray[2],obj);
-	//jint col = (*env)->GetArrayLength(env,myarray); //get col	
-	//printf("%d\n",col);
-	//for(i=0;i<row;i++)
-	//{
-	//	*myarray = (*env)->GetObjectArrayElement(env,jx,i); //row i
-		//jdouble *coldata = (*env)->GetDoubleArrayElements(env, (jdoubleArray)myarray,0);
-	//	for(j=0;i<col;j++)
-	//	{
-			
-	//		jarray coldata = (*env)->GetObjectArrayElement(env,(jobjectArray)myarray,j);
-			//printf("%d\n",coldata[0]);
-			//(*(prob.x+i)+j)->value = (double)coldata[1];	
-			//prob.x[i][j].dim = (int)coldata[0];
-	//	}
-			
-	//}
+(JNIEnv *env, jobject obj, jstring jfilename, jint jsvm_type, jint jkernel_type, jint jdegree, jdouble jgamma, jdouble jcoef0, jdouble jcache_size, jdouble jeps, jdouble jC, jint jnr_weight, jdouble jnu, jdouble jp, jint jshrinking, jint jprobability, jint jnr_fold){
 	param.svm_type = param.kernel_type;
 	param.degree = jdegree;
 	param.gamma = jgamma;
@@ -83,8 +38,218 @@ JNIEXPORT void JNICALL Java_SVM_1J2C_do_1cross_1validation
 	param.shrinking = jshrinking;
 	param.probability = jprobability;
     	nr_fold = jnr_fold;
+    
+    	const char* filename = (char*) (*env)->GetStringUTFChars(env,jfilename,JNI_FALSE);
+    	printf("%s\n",filename);
+	read_problem(filename);
+    	(*env)->ReleaseStringUTFChars(env,jfilename,filename);
     	do_cross_validation_with_KM_precalculated();
-    return;
+   	 return;
+}
+
+
+static char* readline(FILE *input)
+{
+    int len;
+    
+    if(fgets(line,max_line_len,input) == NULL)
+        return NULL;
+    
+    while(strrchr(line,'\n') == NULL)
+    {
+        max_line_len *= 2;
+        line = (char *) realloc(line,max_line_len);
+        len = (int) strlen(line);
+        if(fgets(line+len,max_line_len-len,input) == NULL)
+            break;
+    }
+    return line;
+}
+
+
+void read_problem(const char *filename)
+{
+    int elements, max_index, inst_max_index, i, j;
+#ifdef _DENSE_REP
+    double value;
+#endif
+    FILE *fp = fopen(filename,"r");
+    char *endptr;
+    char *idx, *val, *label;
+    
+    if(fp == NULL)
+    {
+        fprintf(stderr,"can't open input file %s\n",filename);
+        exit(1);
+    }
+    
+    prob.l = 0;
+    elements = 0;
+    
+    max_line_len = 1024;
+    line = Malloc(char,max_line_len);
+#ifdef _DENSE_REP
+    max_index = 1;
+    while(readline(fp) != NULL)
+    {
+        char *p;
+        p = strrchr(line, ':');
+        if(p != NULL)
+        {
+            while(*p != ' ' && *p != '\t' && p > line)
+                p--;
+            if(p > line)
+                max_index = (int) strtol(p,&endptr,10) + 1;
+        }
+        if(max_index > elements)
+            elements = max_index;
+        ++prob.l;
+    }
+    
+    rewind(fp);
+    
+    prob.y = Malloc(double,prob.l);
+    prob.x = Malloc(struct svm_node,prob.l);
+    
+    for(i=0;i<prob.l;i++)
+    {
+        int *d;
+        (prob.x+i)->values = Malloc(double,elements);
+        (prob.x+i)->dim = 0;
+        
+        inst_max_index = -1; // strtol gives 0 if wrong format, and precomputed kernel has <index> start from 0
+        readline(fp);
+        
+        label = strtok(line," \t");
+        prob.y[i] = strtod(label,&endptr);
+        if(endptr == label)
+            exit_input_error(i+1);
+        
+        while(1)
+        {
+            idx = strtok(NULL,":");
+            val = strtok(NULL," \t");
+            
+            if(val == NULL)
+                break;
+            
+            errno = 0;
+            j = (int) strtol(idx,&endptr,10);
+            if(endptr == idx || errno != 0 || *endptr != '\0' || j <= inst_max_index)
+                exit_input_error(i+1);
+            else
+                inst_max_index = j;
+            
+            errno = 0;
+            value = strtod(val,&endptr);
+            if(endptr == val || errno != 0 || (*endptr != '\0' && !isspace(*endptr)))
+                exit_input_error(i+1);
+            
+            d = &((prob.x+i)->dim);
+            while (*d < j)
+                (prob.x+i)->values[(*d)++] = 0.0;
+            (prob.x+i)->values[(*d)++] = value;
+        }
+    }
+    max_index = elements-1;
+    
+#else
+    while(readline(fp)!=NULL)
+    {
+        char *p = strtok(line," \t"); // label
+        
+        // features
+        while(1)
+        {
+            p = strtok(NULL," \t");
+            if(p == NULL || *p == '\n') // check '\n' as ' ' may be after the last feature
+                break;
+            ++elements;
+        }
+        ++elements;
+        ++prob.l;
+    }
+    rewind(fp);
+    
+    prob.y = Malloc(double,prob.l);
+    prob.x = Malloc(struct svm_node *,prob.l);
+    x_space = Malloc(struct svm_node,elements);
+    
+    max_index = 0;
+    j=0;
+    for(i=0;i<prob.l;i++)
+    {
+        inst_max_index = -1; // strtol gives 0 if wrong format, and precomputed kernel has <index> start from 0
+        readline(fp);
+        prob.x[i] = &x_space[j];
+        label = strtok(line," \t\n");
+        if(label == NULL) // empty line
+            exit_input_error(i+1);
+        
+        prob.y[i] = strtod(label,&endptr);
+        if(endptr == label || *endptr != '\0')
+            exit_input_error(i+1);
+        
+        while(1)
+        {
+            idx = strtok(NULL,":");
+            val = strtok(NULL," \t");
+            
+            if(val == NULL)
+                break;
+            
+            errno = 0;
+            x_space[j].index = (int) strtol(idx,&endptr,10);
+            if(endptr == idx || errno != 0 || *endptr != '\0' || x_space[j].index <= inst_max_index)
+                exit_input_error(i+1);
+            else
+                inst_max_index = x_space[j].index;
+            
+            errno = 0;
+            x_space[j].value = strtod(val,&endptr);
+            if(endptr == val || errno != 0 || (*endptr != '\0' && !isspace(*endptr)))
+                exit_input_error(i+1);
+            
+            ++j;
+        }
+        
+        if(inst_max_index > max_index)
+            max_index = inst_max_index;
+        x_space[j++].index = -1;
+    }
+#endif
+    
+    if(param.gamma == 0 && max_index > 0)
+        param.gamma = 1.0/max_index;
+    
+    if(param.kernel_type == PRECOMPUTED)
+        for(i=0;i<prob.l;i++)
+        {
+#ifdef _DENSE_REP
+            if ((prob.x+i)->dim == 0 || (prob.x+i)->values[0] == 0.0)
+            {
+                fprintf(stderr,"Wrong input format: first column must be 0:sample_serial_number\n");
+                exit(1);
+            }
+            if ((int)(prob.x+i)->values[0] < 0 || (int)(prob.x+i)->values[0] > max_index)
+            {
+                fprintf(stderr,"Wrong input format: sample_serial_number out of range\n");
+                exit(1);
+            }
+#else
+            if (prob.x[i][0].index != 0)
+            {
+                fprintf(stderr,"Wrong input format: first column must be 0:sample_serial_number\n");
+                exit(1);
+            }
+            if ((int)prob.x[i][0].value <= 0 || (int)prob.x[i][0].value > max_index)
+            {
+                fprintf(stderr,"Wrong input format: sample_serial_number out of range\n");
+                exit(1);
+            }
+#endif
+        }
+    fclose(fp);
 }
 
 void setup_pkm(struct svm_problem *p_km)

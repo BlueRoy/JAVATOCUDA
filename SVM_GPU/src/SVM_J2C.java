@@ -18,7 +18,7 @@ public class SVM_J2C {
 		System.loadLibrary("SVM_GPU");
 	}
 		
-	public native void do_cross_validation(int l, double[] y, svm_node[][] x, int svm_type, int kernel_type, int degree, double gamma, double coef0, double cache_size, 
+	public native void do_cross_validation(String input_file_name, int svm_type, int kernel_type, int degree, double gamma, double coef0, double cache_size,
 			double eps, double C, int nr_weight, double nu, double p, int shrinking, int probability, int nr_fold);
 
 
@@ -64,14 +64,7 @@ public class SVM_J2C {
 	private void run(String argv[]) throws IOException
 	{
 		parse_command_line(argv);
-		read_problem();
-		error_msg = svm.svm_check_parameter(prob,param);
-
-		if(error_msg != null)
-		{
-			System.err.print("ERROR: "+error_msg+"\n");
-			System.exit(1);
-		}
+		
 		//double[][] index = new double[prob.l][];
 		//double[][] value = new double[prob.l][];
 		//for (int i=0; i<prob.l; i++){
@@ -84,8 +77,7 @@ public class SVM_J2C {
 		//}		
 		if (cross_validation != 0){
 		long starttime = System.currentTimeMillis();
-		do_cross_validation(prob.l,prob.y,prob.x,param.svm_type, param.kernel_type, param.degree, param.gamma, param.coef0, param.cache_size, 
-				param.eps, param.C, param.nr_weight, param.nu, param.p, param.shrinking, param.probability,nr_fold); 
+		do_cross_validation(input_file_name, param.svm_type, param.kernel_type, param.degree, param.gamma, param.coef0, param.cache_size,param.eps, param.C, param.nr_weight, param.nu, param.p, param.shrinking, param.probability,nr_fold);
 		long endtime = System.currentTimeMillis(); 
 		System.out.println("Time: " + (endtime-starttime) + "ms");
 		}
@@ -234,63 +226,6 @@ public class SVM_J2C {
 			++p;	// whew...
 			model_file_name = argv[i].substring(p)+".model";
 		}
-	}
-	
-	private void read_problem() throws IOException
-	{
-		BufferedReader fp = new BufferedReader(new FileReader(input_file_name));
-		Vector<Double> vy = new Vector<Double>();
-		Vector<svm_node[]> vx = new Vector<svm_node[]>();
-		int max_index = 0;
-
-		while(true)
-		{
-			String line = fp.readLine();
-			if(line == null) break;
-
-			StringTokenizer st = new StringTokenizer(line," \t\n\r\f:");
-
-			vy.addElement(atof(st.nextToken()));
-			int m = st.countTokens()/2;
-			svm_node[] x = new svm_node[m];
-			for(int j=0;j<m;j++)
-			{
-				x[j] = new svm_node();
-				x[j].index = atoi(st.nextToken());
-				x[j].value = atof(st.nextToken());
-			}
-			if(m>0) max_index = Math.max(max_index, x[m-1].index);
-			vx.addElement(x);
-		}
-
-		prob = new svm_problem();
-		prob.l = vy.size();
-		prob.x = new svm_node[prob.l][];
-		for(int i=0;i<prob.l;i++)
-			prob.x[i] = vx.elementAt(i);
-		prob.y = new double[prob.l];
-		for(int i=0;i<prob.l;i++)
-			prob.y[i] = vy.elementAt(i);
-
-		if(param.gamma == 0 && max_index > 0)
-			param.gamma = 1.0/max_index;
-
-		if(param.kernel_type == svm_parameter.PRECOMPUTED)
-			for(int i=0;i<prob.l;i++)
-			{
-				if (prob.x[i][0].index != 0)
-				{
-					System.err.print("Wrong kernel matrix: first column must be 0:sample_serial_number\n");
-					System.exit(1);
-				}
-				if ((int)prob.x[i][0].value <= 0 || (int)prob.x[i][0].value > max_index)
-				{
-					System.err.print("Wrong input format: sample_serial_number out of range\n");
-					System.exit(1);
-				}
-			}
-
-		fp.close();
 	}
 }
 
